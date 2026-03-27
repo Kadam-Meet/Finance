@@ -26,6 +26,40 @@ import { toast } from "@/hooks/use-toast";
 import { VoiceData, ExpenseCategory } from "@/types/models";
 import { aiApi, expenseApi } from "@/services/api";
 
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  currentRecognition?: SpeechRecognitionInstance;
+};
+
 const VoiceEntry = () => {
   const navigate = useNavigate();
   const [isListening, setIsListening] = useState(false);
@@ -51,7 +85,8 @@ const VoiceEntry = () => {
   }, []);
 
   const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
       toast({
@@ -73,7 +108,7 @@ const VoiceEntry = () => {
       setParsedData(null);
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
       let finalTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
@@ -86,7 +121,7 @@ const VoiceEntry = () => {
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
       console.error("Speech recognition error:", event.error);
       setIsListening(false);
       toast({
@@ -103,11 +138,12 @@ const VoiceEntry = () => {
     recognition.start();
 
     // Store recognition instance for stopping
-    (window as any).currentRecognition = recognition;
+    speechWindow.currentRecognition = recognition;
   };
 
   const stopListening = () => {
-    const recognition = (window as any).currentRecognition;
+    const speechWindow = window as SpeechWindow;
+    const recognition = speechWindow.currentRecognition;
     if (recognition) {
       recognition.stop();
     }

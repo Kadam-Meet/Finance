@@ -261,6 +261,32 @@ export const expenseApi = {
     if (startDate) queryParams.append('startDate', startDate);
     if (endDate) queryParams.append('endDate', endDate);
     const response = await fetchWithAuth(`/expenses/export?${queryParams}`);
+    if (response.ok) {
+      return response.blob();
+    }
+
+    // Fallback for backends that do not expose /expenses/export.
+    if (response.status === 404) {
+      const listResponse = await expenseApi.getAll();
+      const rows = listResponse.success && listResponse.data ? listResponse.data.data : [];
+      const csv = [
+        'id,amount,category,description,date,paymentMethod',
+        ...rows.map((row) => {
+          const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+          return [
+            escape(row.id),
+            escape(row.amount),
+            escape(row.category),
+            escape(row.description),
+            escape(row.date),
+            escape(row.paymentMethod),
+          ].join(',');
+        }),
+      ].join('\n');
+
+      return new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    }
+
     return response.blob();
   },
 };
@@ -322,24 +348,86 @@ export const aiApi = {
     category: string;
     confidence: number;
   }>> => {
-    const response = await fetchWithAuth('/categorize', {
-      method: 'POST',
-      body: JSON.stringify({ description, amount }),
-    });
-    return response.json();
+    const lowered = description.toLowerCase();
+    let category = 'other';
+
+    if (/(food|restaurant|cafe|swiggy|zomato|grocery|dining)/.test(lowered)) {
+      category = 'food';
+    } else if (/(uber|ola|fuel|petrol|diesel|taxi|bus|metro)/.test(lowered)) {
+      category = 'transport';
+    } else if (/(amazon|flipkart|shopping|store|mall)/.test(lowered)) {
+      category = 'shopping';
+    } else if (/(movie|cinema|netflix|spotify|game)/.test(lowered)) {
+      category = 'entertainment';
+    } else if (/(rent|electricity|water|internet|bill|utility)/.test(lowered)) {
+      category = 'bills';
+    } else if (/(hospital|clinic|pharmacy|medical|doctor)/.test(lowered)) {
+      category = 'health';
+    } else if (/(school|college|course|tuition|book)/.test(lowered)) {
+      category = 'education';
+    }
+
+    const confidence = Math.min(0.95, Math.max(0.6, amount > 0 ? 0.82 : 0.7));
+    return {
+      success: true,
+      data: {
+        category,
+        confidence,
+      },
+    };
   },
 
   // Budget Suggestions
   getBudgetSuggestions: async (): Promise<ApiResponse<BudgetSuggestion[]>> => {
-    const response = await fetchWithAuth('/budget');
-    return response.json();
+    const budgetResponse = await budgetApi.getAll();
+    if (!budgetResponse.success || !budgetResponse.data) {
+      return {
+        success: false,
+        error: budgetResponse.error || 'Failed to load budgets for suggestions',
+      };
+    }
+
+    const suggestions: BudgetSuggestion[] = budgetResponse.data.map((budget) => ({
+      category: budget.category as BudgetSuggestion['category'],
+      suggestedAmount: Number((budget.amount * 0.95).toFixed(2)),
+      currentSpending: 0,
+      percentChange: -5,
+      reason: `Consider reducing ${budget.category} budget by 5% to improve monthly savings.`,
+    }));
+
+    return {
+      success: true,
+      data: suggestions,
+    };
   },
 
   // Spending Forecast
   getForecast: async (months?: number): Promise<ApiResponse<ForecastData[]>> => {
     const queryParams = months ? `?months=${months}` : '';
     const response = await fetchWithAuth(`/forecast/${queryParams}`);
-    return response.json();
+    const parsed = await parseApiResponse<{
+      forecast?: Array<{ month: string; predictedAmount: number; confidence: number }>;
+    }>(response);
+
+    if (!parsed.success || !parsed.data) {
+      return {
+        success: false,
+        error: parsed.error || 'Failed to load spending forecast',
+      };
+    }
+
+    const rows = (parsed.data.forecast || []).map((item) => ({
+      month: item.month,
+      predictedAmount: item.predictedAmount,
+      lowerBound: Number((item.predictedAmount * 0.9).toFixed(2)),
+      upperBound: Number((item.predictedAmount * 1.1).toFixed(2)),
+      confidence: item.confidence,
+    }));
+
+    return {
+      success: true,
+      data: rows,
+    };
   },
 };
 
@@ -354,8 +442,26 @@ export const groupApi = {
   },
 
   getById: async (id: string): Promise<ApiResponse<Group>> => {
-    const response = await fetchWithAuth(`/groups/${id}`);
-    return response.json();
+    const response = await groupApi.getAll();
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to load groups',
+      };
+    }
+
+    const group = response.data.find((item) => String(item.id) === String(id));
+    if (!group) {
+      return {
+        success: false,
+        error: 'Group not found',
+      };
+    }
+
+    return {
+      success: true,
+      data: group,
+    };
   },
 
   create: async (data: { name: string; description?: string }): Promise<ApiResponse<Group>> => {
@@ -441,10 +547,10 @@ export const groupApi = {
   },
 
   settleBalance: async (groupId: string, userId: string): Promise<ApiResponse<null>> => {
-    const response = await fetchWithAuth(`/groups/${groupId}/settle/${userId}`, {
-      method: 'POST',
-    });
-    return response.json();
+    return {
+      success: false,
+      error: `Settle balance endpoint is not available for group ${groupId} and user ${userId}. Use createSettlement instead.`,
+    };
   },
 };
 
@@ -513,24 +619,205 @@ export const budgetApi = {
 
 export const dashboardApi = {
   getStats: async (): Promise<ApiResponse<DashboardStats>> => {
-    const response = await fetchWithAuth('/dashboard/stats');
-    return response.json();
+    const [incomeResponse, expenseResponse, remindersResponse] = await Promise.all([
+      incomeApi.getAll(),
+      expenseApi.getAll(),
+      reminderApi.getAll(),
+    ]);
+
+    if (!incomeResponse.success || !expenseResponse.success || !remindersResponse.success) {
+      return {
+        success: false,
+        error:
+          incomeResponse.error || expenseResponse.error || remindersResponse.error || 'Failed to compute dashboard stats',
+      };
+    }
+
+    const incomes = incomeResponse.data || [];
+    const expenses = expenseResponse.data?.data || [];
+    const reminders = remindersResponse.data || [];
+
+    const totalIncome = incomes.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalSpent = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    const monthlyIncome = incomes.reduce<Record<string, number>>((acc, item) => {
+      const date = new Date(item.date);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+      return acc;
+    }, {});
+
+    const monthlyExpense = expenses.reduce<Record<string, number>>((acc, item) => {
+      const date = new Date(item.date);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+      return acc;
+    }, {});
+
+    const monthKeys = Array.from(new Set([...Object.keys(monthlyIncome), ...Object.keys(monthlyExpense)])).sort();
+    const latestKey = monthKeys[monthKeys.length - 1];
+    const previousKey = monthKeys[monthKeys.length - 2];
+    const latestBalance = latestKey ? (monthlyIncome[latestKey] || 0) - (monthlyExpense[latestKey] || 0) : 0;
+    const previousBalance = previousKey ? (monthlyIncome[previousKey] || 0) - (monthlyExpense[previousKey] || 0) : 0;
+    const balanceTrend =
+      previousBalance !== 0
+        ? Number((((latestBalance - previousBalance) / Math.abs(previousBalance)) * 100).toFixed(2))
+        : 0;
+
+    const categoryTotals = expenses.reduce<Record<string, number>>((acc, item) => {
+      const key = item.category || 'other';
+      acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+      return acc;
+    }, {});
+
+    const topCategoryEntry = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0] || ['other', 0];
+    const monthlyBudget = totalSpent > 0 ? totalSpent * 1.1 : 0;
+
+    return {
+      success: true,
+      data: {
+        totalBalance: Number((totalIncome - totalSpent).toFixed(2)),
+        balanceTrend,
+        monthlySpending: Number(totalSpent.toFixed(2)),
+        monthlyBudget: Number(monthlyBudget.toFixed(2)),
+        topCategory: {
+          name: topCategoryEntry[0] as DashboardStats['topCategory']['name'],
+          amount: Number(topCategoryEntry[1].toFixed(2)),
+          percentage: totalSpent > 0 ? Number(((topCategoryEntry[1] / totalSpent) * 100).toFixed(2)) : 0,
+        },
+        upcomingBills: reminders.filter((item) => !item.isPaid).length,
+      },
+    };
   },
 
   getSpendingByCategory: async (month?: string): Promise<ApiResponse<SpendingByCategory[]>> => {
-    const queryParams = month ? `?month=${month}` : '';
-    const response = await fetchWithAuth(`/dashboard/by-category${queryParams}`);
-    return response.json();
+    const expenseResponse = await expenseApi.getAll();
+    if (!expenseResponse.success || !expenseResponse.data) {
+      return {
+        success: false,
+        error: expenseResponse.error || 'Failed to compute spending by category',
+      };
+    }
+
+    const rows = expenseResponse.data.data;
+    const normalizedMonth = month?.toLowerCase();
+    const filtered = normalizedMonth
+      ? rows.filter((item) => new Date(item.date).toLocaleString('en-US', { month: 'long' }).toLowerCase() === normalizedMonth)
+      : rows;
+
+    const totals = filtered.reduce<Record<string, number>>((acc, item) => {
+      const key = item.category || 'other';
+      acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+      return acc;
+    }, {});
+
+    const totalAmount = Object.values(totals).reduce((sum, value) => sum + value, 0);
+
+    return {
+      success: true,
+      data: Object.entries(totals).map(([category, amount]) => ({
+        category: category as SpendingByCategory['category'],
+        amount: Number(amount.toFixed(2)),
+        percentage: totalAmount > 0 ? Number(((amount / totalAmount) * 100).toFixed(2)) : 0,
+        color: '',
+      })),
+    };
   },
 
   getSpendingOverTime: async (period: 'week' | 'month' | 'year' = 'month'): Promise<ApiResponse<SpendingOverTime[]>> => {
-    const response = await fetchWithAuth(`/dashboard/over-time?period=${period}`);
-    return response.json();
+    const expenseResponse = await expenseApi.getAll();
+    if (!expenseResponse.success || !expenseResponse.data) {
+      return {
+        success: false,
+        error: expenseResponse.error || 'Failed to compute spending over time',
+      };
+    }
+
+    const formatters: Record<typeof period, (date: Date) => string> = {
+      week: (date) => `${date.getFullYear()}-W${Math.ceil((date.getDate() + 6 - date.getDay()) / 7)}`,
+      month: (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      year: (date) => `${date.getFullYear()}`,
+    };
+
+    const grouped = expenseResponse.data.data.reduce<Record<string, number>>((acc, item) => {
+      const key = formatters[period](new Date(item.date));
+      acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+      return acc;
+    }, {});
+
+    return {
+      success: true,
+      data: Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, amount]) => ({
+          date,
+          amount: Number(amount.toFixed(2)),
+        })),
+    };
   },
 
   getRecentExpenses: async (limit: number = 10): Promise<ApiResponse<Expense[]>> => {
-    const response = await fetchWithAuth(`/dashboard/recent?limit=${limit}`);
-    return response.json();
+    const expenseResponse = await expenseApi.getAll();
+    if (!expenseResponse.success || !expenseResponse.data) {
+      return {
+        success: false,
+        error: expenseResponse.error || 'Failed to load recent expenses',
+      };
+    }
+
+    const recent = [...expenseResponse.data.data]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, limit);
+
+    return {
+      success: true,
+      data: recent,
+    };
+  },
+};
+
+export const investmentApi = {
+  getAll: async (): Promise<ApiResponse<Array<{
+    id: string;
+    stock_name: string;
+    buy_price: number;
+    sell_price: number;
+    quantity: number;
+    tax_slab: number;
+    created_at?: string;
+  }>>> => {
+    const response = await fetchWithAuth('/investments/');
+    return parseApiResponse(response);
+  },
+
+  analyze: async (data: {
+    stockName: string;
+    buyPrice: number;
+    sellPrice: number;
+    quantity: number;
+    taxSlab: number;
+  }): Promise<ApiResponse<{
+    investment: {
+      id: string;
+      stock_name: string;
+      buy_price: number;
+      sell_price: number;
+      quantity: number;
+      tax_slab: number;
+      created_at?: string;
+    };
+    result: {
+      profit: number;
+      tax: number;
+      netProfit: number;
+      aiInsight: string;
+    };
+  }>> => {
+    const response = await fetchWithAuth('/investments/analyze', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseApiResponse(response);
   },
 };
 

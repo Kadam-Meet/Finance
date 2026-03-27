@@ -38,7 +38,7 @@ import {
   MoreVertical
 } from "lucide-react";
 import { Budget as BudgetType, BudgetSuggestion, ExpenseCategory } from "@/types/models";
-import { budgetApi } from "@/services/api";
+import { budgetApi, expenseApi } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 
 const categoryIcons: Record<ExpenseCategory, React.ReactNode> = {
@@ -109,15 +109,50 @@ const BudgetPage = () => {
     const loadBudgets = async () => {
       setIsLoading(true);
       setError(null);
-      const response = await budgetApi.getAll();
+      const [budgetResponse, expenseResponse] = await Promise.all([
+        budgetApi.getAll(),
+        expenseApi.getAll(),
+      ]);
 
-      if (!response.success || !response.data) {
-        setError(response.error || "Failed to load budgets");
+      if (!budgetResponse.success || !budgetResponse.data) {
+        setError(budgetResponse.error || "Failed to load budgets");
         setIsLoading(false);
         return;
       }
 
-      setBudgets((response.data as BackendBudget[]).map(toFrontendBudget));
+      if (!expenseResponse.success || !expenseResponse.data) {
+        setError(expenseResponse.error || "Failed to load expense history");
+        setIsLoading(false);
+        return;
+      }
+
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const expenses = expenseResponse.data.data || [];
+      const monthlySpendByCategory = expenses.reduce<Record<string, number>>((acc, expense) => {
+        const expenseDate = new Date(expense.date);
+        if (expenseDate.getMonth() !== currentMonth || expenseDate.getFullYear() !== currentYear) {
+          return acc;
+        }
+
+        const key = expense.category || "other";
+        acc[key] = (acc[key] || 0) + Number(expense.amount || 0);
+        return acc;
+      }, {});
+
+      const mappedBudgets = (budgetResponse.data as BackendBudget[]).map((budget) => {
+        const base = toFrontendBudget(budget);
+        const spent = Number((monthlySpendByCategory[base.category] || 0).toFixed(2));
+        return {
+          ...base,
+          spent,
+          remaining: Number((base.amount - spent).toFixed(2)),
+        };
+      });
+
+      setBudgets(mappedBudgets);
       setIsLoading(false);
     };
 
@@ -125,14 +160,43 @@ const BudgetPage = () => {
   }, []);
 
   const suggestions: BudgetSuggestion[] = useMemo(
-    () =>
-      budgets.slice(0, 3).map((budget) => ({
-        category: budget.category,
-        suggestedAmount: Math.max(0, Number((budget.amount * 0.95).toFixed(2))),
-        currentSpending: budget.spent,
-        percentChange: -5,
-        reason: `Consider reducing ${budget.category} budget by 5% to increase monthly savings.`,
-      })),
+    () => {
+      return budgets
+        .slice()
+        .sort((a, b) => (b.spent / Math.max(b.amount, 1)) - (a.spent / Math.max(a.amount, 1)))
+        .slice(0, 3)
+        .map((budget) => {
+          const usage = budget.amount > 0 ? (budget.spent / budget.amount) * 100 : 0;
+          const overspent = usage > 100;
+          const highUsage = usage >= 85;
+
+          let suggestedAmount = budget.amount;
+          let percentChange = 0;
+          let reason = `${budget.category} is stable this month. Keep tracking expenses.`;
+
+          if (overspent) {
+            suggestedAmount = Number((budget.spent * 1.08).toFixed(2));
+            percentChange = Number((((suggestedAmount - budget.amount) / Math.max(budget.amount, 1)) * 100).toFixed(1));
+            reason = `You are over budget in ${budget.category}. Consider raising this budget slightly and cutting discretionary spends.`;
+          } else if (highUsage) {
+            suggestedAmount = Number((budget.amount * 1.03).toFixed(2));
+            percentChange = 3;
+            reason = `${budget.category} usage is high (${usage.toFixed(0)}%). A small increase can prevent end-of-month overruns.`;
+          } else if (usage <= 60) {
+            suggestedAmount = Number((budget.amount * 0.95).toFixed(2));
+            percentChange = -5;
+            reason = `You are spending below plan in ${budget.category}. You can reduce this budget and redirect funds to savings.`;
+          }
+
+          return {
+            category: budget.category,
+            suggestedAmount,
+            currentSpending: budget.spent,
+            percentChange,
+            reason,
+          };
+        });
+    },
     [budgets]
   );
 
@@ -190,8 +254,60 @@ const BudgetPage = () => {
     ));
   };
 
+  const openAIChat = (prompt: string) => {
+    const topCategories = [...budgets]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 3)
+      .map((item) => `${item.category}: ₹${item.amount.toFixed(2)}`);
+
+    window.dispatchEvent(
+      new CustomEvent("finance-ai:open", {
+        detail: {
+          prompt,
+          context: {
+            source: "budget",
+            summary: `Budget dashboard snapshot for ${new Date().toLocaleString("en-US", { month: "long" })}.`,
+            metrics: {
+              totalBudget: Number(totalBudget.toFixed(2)),
+              totalSpent: Number(totalSpent.toFixed(2)),
+              usagePercent: totalBudget > 0 ? Number(((totalSpent / totalBudget) * 100).toFixed(2)) : 0,
+              remaining: Number((totalBudget - totalSpent).toFixed(2)),
+              budgetCategories: budgets.length,
+            },
+            highlights: [
+              `Top budget categories: ${topCategories.join(", ") || "none"}`,
+              `Suggestions available: ${suggestions.length}`,
+            ],
+          },
+        },
+      })
+    );
+  };
+
   const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
   const totalSpent = budgets.reduce((sum, b) => sum + b.spent, 0);
+  const chatbotInsights = useMemo(
+    () => [
+      {
+        title: "Budget balance check",
+        description:
+          totalBudget > 0
+            ? `${((totalSpent / totalBudget) * 100).toFixed(1)}% of your planned budget is currently used.`
+            : "Add a budget to start receiving utilization insights.",
+        prompt: `Analyze my budget usage. Total budget: ${totalBudget.toFixed(2)} INR, spent: ${totalSpent.toFixed(2)} INR. Give 3 actions for this month.`,
+      },
+      {
+        title: "Savings opportunity",
+        description: `Potential monthly savings by applying current recommendations: ₹${suggestions
+          .reduce((sum, item) => sum + Math.max(0, item.currentSpending - item.suggestedAmount), 0)
+          .toFixed(2)}.`,
+        prompt: `Suggest a weekly plan to save more based on my budget suggestions: ${suggestions
+          .map((item) => `${item.category} -> ${item.suggestedAmount}`)
+          .join(", ")}.`,
+      },
+    ],
+    [suggestions, totalBudget, totalSpent]
+  );
 
   return (
     <div className="space-y-6">
@@ -350,6 +466,34 @@ const BudgetPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={() =>
+                  openAIChat(
+                    `Review my overall budget and suggest a realistic category-wise spending plan for next month. Total budget is ${totalBudget.toFixed(2)} INR and spent is ${totalSpent.toFixed(2)} INR.`
+                  )
+                }
+              >
+                <Sparkles className="mr-2 h-3 w-3" />
+                Ask AI For Full Budget Plan
+              </Button>
+
+              {chatbotInsights.map((insight) => (
+                <div key={insight.title} className="rounded-lg border bg-background p-3">
+                  <p className="text-sm font-medium">{insight.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{insight.description}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 w-full"
+                    onClick={() => openAIChat(insight.prompt)}
+                  >
+                    Ask AI Insight
+                  </Button>
+                </div>
+              ))}
+
               {suggestions.map((suggestion, index) => (
                 <div key={index} className="p-3 rounded-lg border bg-background">
                   <div className="flex items-center justify-between mb-2">
@@ -376,15 +520,29 @@ const BudgetPage = () => {
                   <p className="text-xs text-muted-foreground mb-3">
                     {suggestion.reason}
                   </p>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => applySuggestion(suggestion)}
-                  >
-                    <Check className="mr-2 h-3 w-3" />
-                    Apply Suggestion
-                  </Button>
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => applySuggestion(suggestion)}
+                    >
+                      <Check className="mr-2 h-3 w-3" />
+                      Apply Suggestion
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() =>
+                        openAIChat(
+                          `I received a budget suggestion for ${suggestion.category}: ${suggestion.suggestedAmount} INR (${suggestion.percentChange}% change). Explain whether I should apply it and what trade-offs I should expect.`
+                        )
+                      }
+                    >
+                      <Sparkles className="mr-2 h-3 w-3" />
+                      Ask AI About This
+                    </Button>
+                  </div>
                 </div>
               ))}
             </CardContent>

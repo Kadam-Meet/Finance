@@ -1,28 +1,121 @@
+import { useEffect, useMemo, useState } from 'react';
 import { TrendingUp, TrendingDown, Wallet, CreditCard, PieChart, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { dashboardApi } from '@/services/api';
+import type { DashboardStats, Expense } from '@/types/models';
 
-const stats = [
-  { label: 'Total Balance', value: '₹12,450', trend: 8.2, icon: Wallet, color: 'bg-primary' },
-  { label: 'Monthly Spending', value: '₹3,280', trend: -5.4, icon: CreditCard, color: 'bg-accent' },
-  { label: 'Top Category', value: 'Food & Dining', subtitle: '₹890 (27%)', icon: PieChart, color: 'bg-success' },
-  { label: 'Upcoming Bills', value: '4 Bills', subtitle: 'Due this week', icon: Bell, color: 'bg-warning' },
-];
+type StatCard = {
+  label: string;
+  value: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  trend?: number;
+  trendText?: string;
+  subtitle?: string;
+};
 
-const recentExpenses = [
-  { id: 1, description: 'Grocery Store', category: 'Food', amount: -85.50, date: 'Today' },
-  { id: 2, description: 'Uber Ride', category: 'Transport', amount: -24.00, date: 'Today' },
-  { id: 3, description: 'Netflix', category: 'Entertainment', amount: -15.99, date: 'Yesterday' },
-  { id: 4, description: 'Electric Bill', category: 'Bills', amount: -120.00, date: 'Yesterday' },
-  { id: 5, description: 'Amazon Purchase', category: 'Shopping', amount: -65.00, date: '2 days ago' },
-];
+const formatCategoryLabel = (value: string) =>
+  value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const formatRelativeDate = (dateValue: string) => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+
+  const now = new Date();
+  const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((currentDate.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+};
 
 const Dashboard = () => {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      const [statsResponse, recentResponse] = await Promise.all([
+        dashboardApi.getStats(),
+        dashboardApi.getRecentExpenses(5),
+      ]);
+
+      if (!statsResponse.success || !statsResponse.data) {
+        setError(statsResponse.error || 'Failed to load dashboard');
+        setIsLoading(false);
+        return;
+      }
+
+      setStats(statsResponse.data);
+      setRecentExpenses(recentResponse.success && recentResponse.data ? recentResponse.data : []);
+      setIsLoading(false);
+    };
+
+    void loadDashboard();
+  }, []);
+
+  const statCards = useMemo<StatCard[]>(() => {
+    if (!stats) return [];
+
+    const spendingDelta =
+      stats.monthlyBudget > 0
+        ? Number((((stats.monthlySpending - stats.monthlyBudget) / stats.monthlyBudget) * 100).toFixed(1))
+        : 0;
+
+    return [
+      {
+        label: 'Total Balance',
+        value: `₹${stats.totalBalance.toLocaleString('en-IN')}`,
+        trend: stats.balanceTrend,
+        trendText: 'from last month',
+        icon: Wallet,
+        color: 'bg-primary',
+      },
+      {
+        label: 'Monthly Spending',
+        value: `₹${stats.monthlySpending.toLocaleString('en-IN')}`,
+        trend: spendingDelta,
+        trendText: 'vs budget target',
+        icon: CreditCard,
+        color: 'bg-accent',
+      },
+      {
+        label: 'Top Category',
+        value: formatCategoryLabel(stats.topCategory.name),
+        subtitle: `₹${stats.topCategory.amount.toLocaleString('en-IN')} (${stats.topCategory.percentage.toFixed(1)}%)`,
+        icon: PieChart,
+        color: 'bg-success',
+      },
+      {
+        label: 'Upcoming Bills',
+        value: `${stats.upcomingBills} Bills`,
+        subtitle: 'Pending reminders',
+        icon: Bell,
+        color: 'bg-warning',
+      },
+    ];
+  }, [stats]);
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {isLoading && <p className="text-sm text-muted-foreground">Loading dashboard...</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => {
+        {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <Card key={index} className="glass-card hover:shadow-lg transition-shadow">
@@ -31,13 +124,13 @@ const Dashboard = () => {
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">{stat.label}</p>
                     <p className="text-2xl font-bold">{stat.value}</p>
-                    {stat.trend !== undefined ? (
+                    {typeof stat.trend === 'number' ? (
                       <div className={cn('flex items-center gap-1 text-sm', stat.trend > 0 ? 'text-success' : 'text-destructive')}>
                         {stat.trend > 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                        <span>{Math.abs(stat.trend)}% from last month</span>
+                        <span>{Math.abs(stat.trend)}% {stat.trendText}</span>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">{stat.subtitle}</p>
+                      <p className="text-sm text-muted-foreground">{stat.subtitle || ''}</p>
                     )}
                   </div>
                   <div className={cn('p-3 rounded-xl', stat.color)}>
@@ -64,16 +157,19 @@ const Dashboard = () => {
                     <CreditCard className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium">{expense.description}</p>
-                    <p className="text-sm text-muted-foreground">{expense.category}</p>
+                    <p className="font-medium">{expense.description || 'Expense'}</p>
+                    <p className="text-sm text-muted-foreground">{formatCategoryLabel(expense.category)}</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-destructive">₹{Math.abs(expense.amount).toFixed(2)}</p>
-                  <p className="text-sm text-muted-foreground">{expense.date}</p>
+                  <p className="text-sm text-muted-foreground">{formatRelativeDate(expense.date)}</p>
                 </div>
               </div>
             ))}
+            {!isLoading && recentExpenses.length === 0 && (
+              <p className="text-sm text-muted-foreground">No recent expenses found.</p>
+            )}
           </div>
         </CardContent>
       </Card>

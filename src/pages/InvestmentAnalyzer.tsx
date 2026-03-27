@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { InvestmentForm } from '@/components/investment/InvestmentForm';
 import { InvestmentSummary } from '@/components/investment/InvestmentSummary';
 import { ProfitTaxBreakdown } from '@/components/investment/ProfitTaxBreakdown';
 import { AIInsights } from '@/components/investment/AIInsights';
 import { InvestmentHistory } from '@/components/investment/InvestmentHistory';
 import { Investment, InvestmentFormData, InvestmentResult } from '@/types/investment';
-import { calculateInvestment } from '@/lib/investmentCalculator';
 import { useToast } from '@/hooks/use-toast';
 import { TrendingUp, BarChart3 } from 'lucide-react';
+import { investmentApi } from '@/services/api';
 
 const InvestmentAnalyzer = () => {
   const [result, setResult] = useState<InvestmentResult | null>(null);
@@ -16,28 +16,92 @@ const InvestmentAnalyzer = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = (formData: InvestmentFormData) => {
+  useEffect(() => {
+    const loadInvestments = async () => {
+      const response = await investmentApi.getAll();
+      if (!response.success || !response.data) {
+        return;
+      }
+
+      const mapped = response.data.map((item) => ({
+        id: String(item.id),
+        stockName: item.stock_name,
+        buyPrice: Number(item.buy_price),
+        quantity: Number(item.quantity),
+        sellPrice: Number(item.sell_price),
+        buyDate: item.created_at || new Date().toISOString(),
+        sellDate: undefined,
+        taxSlab: Number(item.tax_slab),
+        createdAt: item.created_at || new Date().toISOString(),
+      }));
+
+      setInvestments(mapped);
+    };
+
+    void loadInvestments();
+  }, []);
+
+  const handleSubmit = async (formData: InvestmentFormData) => {
     setIsAnalyzing(true);
 
-    // Simulate AI processing delay for better UX
-    setTimeout(() => {
-      const investment: Investment = {
-        id: crypto.randomUUID(),
-        ...formData,
-        createdAt: new Date().toISOString(),
-      };
+    const response = await investmentApi.analyze({
+      stockName: formData.stockName,
+      buyPrice: formData.buyPrice,
+      sellPrice: formData.sellPrice,
+      quantity: formData.quantity,
+      taxSlab: formData.taxSlab,
+    });
 
-      const calculationResult = calculateInvestment(investment);
-      setResult(calculationResult);
-      setCurrentTaxSlab(formData.taxSlab);
-      setInvestments((prev) => [investment, ...prev]);
+    if (!response.success || !response.data) {
       setIsAnalyzing(false);
-
       toast({
-        title: 'Analysis Complete',
-        description: `Your ${formData.stockName} investment has been analyzed successfully.`,
+        title: 'Analysis failed',
+        description: response.error || 'Please try again.',
+        variant: 'destructive',
       });
-    }, 800);
+      return;
+    }
+
+    const saved = response.data.investment;
+    const backendResult = response.data.result;
+    const totalInvestment = formData.buyPrice * formData.quantity;
+    const currentValue = formData.sellPrice * formData.quantity;
+    const profit = backendResult.profit;
+    const returnPercentage = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0;
+
+    setResult({
+      totalInvestment,
+      currentValue,
+      profit,
+      returnPercentage,
+      taxType: 'Short-Term Capital Gain',
+      taxAmount: backendResult.tax,
+      netProfit: backendResult.netProfit,
+      aiInsight: backendResult.aiInsight,
+    });
+
+    setCurrentTaxSlab(formData.taxSlab);
+    setInvestments((prev) => [
+      {
+        id: String(saved.id),
+        stockName: saved.stock_name,
+        buyPrice: Number(saved.buy_price),
+        quantity: Number(saved.quantity),
+        sellPrice: Number(saved.sell_price),
+        buyDate: saved.created_at || new Date().toISOString(),
+        sellDate: undefined,
+        taxSlab: Number(saved.tax_slab),
+        createdAt: saved.created_at || new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+
+    setIsAnalyzing(false);
+
+    toast({
+      title: 'Analysis Complete',
+      description: `Your ${formData.stockName} investment has been analyzed successfully.`,
+    });
   };
 
   return (

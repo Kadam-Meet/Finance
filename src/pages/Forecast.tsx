@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   XAxis,
   YAxis,
@@ -72,6 +73,73 @@ const ForecastPage = () => {
     ? ((nextMonthForecast.predictedAmount - lastExpense) / lastExpense) * 100
     : 0;
   const potentialSavings = Math.max(0, avgMonthlySpending - nextMonthForecast.predictedAmount);
+  const fallbackInsights = useMemo(
+    () => {
+      const rows: Array<{ type: string; title: string; description: string; category?: string }> = [];
+
+      if (trend >= 8) {
+        rows.push({
+          type: "warning",
+          title: "Spending trend is rising",
+          description: `Your projected spending trend is up ${trend.toFixed(1)}% from the previous period.`,
+        });
+      } else if (trend <= -8) {
+        rows.push({
+          type: "achievement",
+          title: "Spending trend improved",
+          description: `Your projected spending trend is down ${Math.abs(trend).toFixed(1)}% from the previous period.`,
+        });
+      }
+
+      rows.push({
+        type: potentialSavings > 0 ? "achievement" : "tip",
+        title: potentialSavings > 0 ? "Savings opportunity found" : "Keep spending stable",
+        description:
+          potentialSavings > 0
+            ? `You could save around ₹${potentialSavings.toFixed(0)} by following current spending targets.`
+            : "Set a budget cap for discretionary categories to improve next-month balance.",
+      });
+
+      rows.push({
+        type: "tip",
+        title: "Confidence-aware planning",
+        description: `Current forecast confidence is ${Math.round(nextMonthForecast.confidence * 100)}%. Recheck after adding more transactions.`,
+      });
+
+      return rows;
+    },
+    [nextMonthForecast.confidence, potentialSavings, trend]
+  );
+
+  const displayedInsights = insights.length > 0 ? insights : fallbackInsights;
+
+  const openAIChat = (prompt: string) => {
+    const latestMonths = forecastData.slice(0, 3).map((item) => `${item.month}: ₹${item.predictedAmount.toFixed(0)}`);
+    const insightTitles = insights.slice(0, 3).map((item) => item.title);
+
+    window.dispatchEvent(
+      new CustomEvent("finance-ai:open", {
+        detail: {
+          prompt,
+          context: {
+            source: "forecast",
+            summary: "Spending forecast dashboard snapshot.",
+            metrics: {
+              nextMonth: Number(nextMonthForecast.predictedAmount.toFixed(2)),
+              confidence: Math.round(nextMonthForecast.confidence * 100),
+              avgMonthlySpending: Number(avgMonthlySpending.toFixed(2)),
+              trendPercent: Number(trend.toFixed(2)),
+              potentialSavings: Number(potentialSavings.toFixed(2)),
+            },
+            highlights: [
+              `Upcoming forecast: ${latestMonths.join(", ") || "none"}`,
+              `Top insights: ${insightTitles.join(", ") || "none"}`,
+            ],
+          },
+        },
+      })
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -202,7 +270,22 @@ const ForecastPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {insights.map((insight, index) => (
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={() =>
+                openAIChat(
+                  `Analyze my spending forecast. Next month prediction: ${nextMonthForecast.predictedAmount.toFixed(0)} INR, confidence: ${Math.round(
+                    nextMonthForecast.confidence * 100
+                  )}%, trend: ${trend.toFixed(1)}%. Give me 3 practical cost-control actions.`
+                )
+              }
+            >
+              <Sparkles className="mr-2 h-3 w-3" />
+              Ask AI For Forecast Plan
+            </Button>
+
+            {displayedInsights.map((insight, index) => (
               <div 
                 key={index} 
                 className={`p-4 rounded-lg border ${insightStyles[insight.type as keyof typeof insightStyles] || insightStyles.tip}`}
@@ -219,6 +302,20 @@ const ForecastPage = () => {
                         {insight.category}
                       </Badge>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 w-full"
+                      onClick={() =>
+                        openAIChat(
+                          `Explain this forecast insight and give action steps: ${insight.title}. Details: ${insight.description}.${
+                            insight.category ? ` Category: ${insight.category}.` : ""
+                          }`
+                        )
+                      }
+                    >
+                      Ask AI About This
+                    </Button>
                   </div>
                 </div>
               </div>

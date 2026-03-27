@@ -29,6 +29,7 @@ import {
 import { IndianRupee, Download, FileText, Loader2, TrendingUp, Receipt, CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { expenseApi } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
+import type { ExpenseCategory } from "@/types/models";
 
 interface ReceiptRow {
   id: string;
@@ -127,7 +128,7 @@ const Claims = () => {
     const response = await expenseApi.update(editingRow.id, {
       amount: parsedAmount,
       description: editDescription,
-      category: editCategory as any,
+      category: editCategory as ExpenseCategory,
       date: editDate,
       paymentMethod: editPaymentMethod,
       isRecurring: false,
