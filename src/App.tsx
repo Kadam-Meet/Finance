@@ -24,8 +24,9 @@ import Forecast from "./pages/Forecast";
 import Groups from "./pages/Groups";
 import Reminders from "./pages/Reminders";
 import Settings from "./pages/Settings";
-import InvestmentAnalyzer from "./pages/InvestmentAnalyzer";
+import StocksCryptoAnalyzer from "./pages/StocksCryptoAnalyzer";
 import NotFound from "./pages/NotFound";
+import AllInvestments from "./pages/AllInvestments";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +65,9 @@ const App = () => (
               <Route path="claims" element={<Claims />} />
               <Route path="budget" element={<Budget />} />
               <Route path="forecast" element={<Forecast />} />
-              <Route path="investments" element={<InvestmentAnalyzer />} />
+              <Route path="investments" element={<Navigate to="/investments/stocks-crypto" replace />} />
+              <Route path="investments/stocks-crypto" element={<StocksCryptoAnalyzer />} />
+              <Route path="investments/all" element={<AllInvestments />} />
               <Route path="groups" element={<Groups />} />
               <Route path="reminders" element={<Reminders />} />
               <Route path="settings" element={<Settings />} />

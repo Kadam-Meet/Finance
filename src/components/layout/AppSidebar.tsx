@@ -43,7 +43,8 @@ const navItems = [
   { icon: ClipboardList, label: 'Monthly Claims', path: '/claims' },
   { icon: PieChart, label: 'Budget', path: '/budget' },
   { icon: TrendingUp, label: 'Forecast', path: '/forecast' },
-  { icon: LineChart, label: 'Investments', path: '/investments' },
+  { icon: LineChart, label: 'Stocks & Crypto', path: '/investments/stocks-crypto' },
+  { icon: Upload, label: 'All Investments', path: '/investments/all' },
   { icon: Users, label: 'Groups', path: '/groups' },
   { icon: Bell, label: 'Reminders', path: '/reminders' },
 ];

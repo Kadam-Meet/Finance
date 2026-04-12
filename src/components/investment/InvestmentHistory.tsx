@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { History, TrendingUp, TrendingDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Investment, InvestmentResult } from '@/types/investment';
 import { formatIndianNumber, calculateInvestment } from '@/lib/investmentCalculator';
 import { cn } from '@/lib/utils';
@@ -20,9 +22,11 @@ interface InvestmentWithResult extends Investment {
 
 interface InvestmentHistoryProps {
   investments: Investment[];
+  onEdit?: (investment: Investment) => void;
+  onDelete?: (investmentId: string) => void;
 }
 
-export const InvestmentHistory = ({ investments }: InvestmentHistoryProps) => {
+export const InvestmentHistory = ({ investments, onEdit, onDelete }: InvestmentHistoryProps) => {
   if (investments.length === 0) {
     return (
       <Card className="border-border/50">
@@ -82,6 +86,7 @@ export const InvestmentHistory = ({ investments }: InvestmentHistoryProps) => {
                 <TableHead>Tax Type</TableHead>
                 <TableHead className="text-right">Net Profit</TableHead>
                 <TableHead>Date</TableHead>
+                {(onEdit || onDelete) && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -115,6 +120,27 @@ export const InvestmentHistory = ({ investments }: InvestmentHistoryProps) => {
                     <TableCell className="text-muted-foreground text-sm">
                       {format(new Date(inv.buyDate), 'dd MMM yyyy')}
                     </TableCell>
+                    {(onEdit || onDelete) && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {onEdit && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(inv)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {onDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => onDelete(inv.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

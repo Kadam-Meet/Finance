@@ -14,9 +14,12 @@ const pageTitles: Record<string, string> = {
   '/expenses/voice': 'Voice Entry',
   '/budget': 'Budget',
   '/forecast': 'Spending Forecast',
-  '/investments': 'Investment & Tax Analyzer',
+  '/investments': 'Stocks & Crypto Analyzer',
+  '/investments/stocks-crypto': 'Stocks & Crypto Analyzer',
+  '/investments/all': 'All Investments',
   '/groups': 'Group Expenses',
   '/reminders': 'Bill Reminders',
+  '/investments/analysis': 'All Investments',
   '/settings': 'Settings',
 };
 

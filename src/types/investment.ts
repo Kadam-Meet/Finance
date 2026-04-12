@@ -34,6 +34,28 @@ export interface InvestmentFormData {
   taxSlab: number;
 }
 
+export type InvestmentType = 'stocks' | 'mutual_funds' | 'fd' | 'rd' | 'sip' | 'gold' | 'crypto';
+
+export const INVESTMENT_TYPES: Array<{ value: InvestmentType; label: string }> = [
+  { value: 'stocks', label: 'Stocks' },
+  { value: 'mutual_funds', label: 'Mutual Funds' },
+  { value: 'fd', label: 'Fixed Deposit' },
+  { value: 'rd', label: 'Recurring Deposit' },
+  { value: 'sip', label: 'SIP' },
+  { value: 'gold', label: 'Gold' },
+  { value: 'crypto', label: 'Crypto' },
+];
+
+export const TYPE_COLORS: Record<InvestmentType, string> = {
+  stocks: '#3B82F6',
+  mutual_funds: '#22C55E',
+  fd: '#F59E0B',
+  rd: '#14B8A6',
+  sip: '#8B5CF6',
+  gold: '#EAB308',
+  crypto: '#EC4899',
+};
+
 // Tax slab options
 export const TAX_SLABS = [
   { value: 10, label: '10% - Standard STCG' },

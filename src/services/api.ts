@@ -779,32 +779,118 @@ export const dashboardApi = {
 export const investmentApi = {
   getAll: async (): Promise<ApiResponse<Array<{
     id: string;
+    user_id?: string;
     stock_name: string;
+    investment_type?: string;
     buy_price: number;
-    sell_price: number;
+    sell_price: number | null;
     quantity: number;
+    buy_date?: string;
+    sell_date?: string | null;
     tax_slab: number;
+    status?: string | null;
     created_at?: string;
+    updated_at?: string;
   }>>> => {
     const response = await fetchWithAuth('/investments/');
     return parseApiResponse(response);
   },
 
-  analyze: async (data: {
+  create: async (data: {
     stockName: string;
+    investmentType?: string;
     buyPrice: number;
-    sellPrice: number;
+    sellPrice?: number | null;
     quantity: number;
     taxSlab: number;
+    buyDate?: string;
+    sellDate?: string | null;
+    status?: string | null;
+  }): Promise<ApiResponse<{
+    id: string;
+    user_id?: string;
+    stock_name: string;
+    investment_type?: string;
+    buy_price: number;
+    sell_price: number | null;
+    quantity: number;
+    buy_date?: string;
+    sell_date?: string | null;
+    tax_slab: number;
+    status?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  }>> => {
+    const response = await fetchWithAuth('/investments/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return parseApiResponse(response);
+  },
+
+  update: async (id: string, data: {
+    stockName: string;
+    investmentType?: string;
+    buyPrice: number;
+    sellPrice?: number | null;
+    quantity: number;
+    taxSlab: number;
+    buyDate?: string;
+    sellDate?: string | null;
+    status?: string | null;
+  }): Promise<ApiResponse<{
+    id: string;
+    user_id?: string;
+    stock_name: string;
+    investment_type?: string;
+    buy_price: number;
+    sell_price: number | null;
+    quantity: number;
+    buy_date?: string;
+    sell_date?: string | null;
+    tax_slab: number;
+    status?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  }>> => {
+    const response = await fetchWithAuth(`/investments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return parseApiResponse(response);
+  },
+
+  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+    const response = await fetchWithAuth(`/investments/${id}`, {
+      method: 'DELETE',
+    });
+    return parseApiResponse(response);
+  },
+
+  analyze: async (data: {
+    stockName: string;
+    investmentType?: string;
+    buyPrice: number;
+    sellPrice?: number | null;
+    quantity: number;
+    taxSlab: number;
+    buyDate?: string;
+    sellDate?: string | null;
+    status?: string | null;
   }): Promise<ApiResponse<{
     investment: {
       id: string;
       stock_name: string;
+      investment_type?: string;
       buy_price: number;
-      sell_price: number;
+      sell_price: number | null;
       quantity: number;
+      buy_date?: string;
+      sell_date?: string | null;
       tax_slab: number;
+      status?: string | null;
       created_at?: string;
+      updated_at?: string;
     };
     result: {
       profit: number;

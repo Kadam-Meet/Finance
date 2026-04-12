@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,12 @@ import { InvestmentFormData, TAX_SLABS } from '@/types/investment';
 interface InvestmentFormProps {
   onSubmit: (data: InvestmentFormData) => void;
   isLoading?: boolean;
+  initialData?: InvestmentFormData;
+  submitLabel?: string;
 }
 
-export const InvestmentForm = ({ onSubmit, isLoading }: InvestmentFormProps) => {
-  const [formData, setFormData] = useState<InvestmentFormData>({
+export const InvestmentForm = ({ onSubmit, isLoading, initialData, submitLabel }: InvestmentFormProps) => {
+  const defaultFormData: InvestmentFormData = {
     stockName: '',
     buyPrice: 0,
     quantity: 1,
@@ -27,7 +29,13 @@ export const InvestmentForm = ({ onSubmit, isLoading }: InvestmentFormProps) => 
     buyDate: new Date().toISOString().split('T')[0],
     sellDate: new Date().toISOString().split('T')[0],
     taxSlab: 15,
-  });
+  };
+
+  const [formData, setFormData] = useState<InvestmentFormData>(initialData || defaultFormData);
+
+  useEffect(() => {
+    setFormData(initialData || defaultFormData);
+  }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,7 +174,7 @@ export const InvestmentForm = ({ onSubmit, isLoading }: InvestmentFormProps) => 
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Analyzing...' : 'Analyze Investment'}
+            {isLoading ? 'Saving...' : (submitLabel || 'Analyze Investment')}
           </Button>
         </form>
       </CardContent>
