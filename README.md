@@ -1,6 +1,7 @@
 # Pocket Pal Finance - Frontend
 
-Frontend application for Pocket Pal Finance built with React, TypeScript, Vite, Tailwind CSS, and shadcn/ui.
+Frontend application for Pocket Pal Finance, built with React, TypeScript, Vite, Tailwind CSS, and shadcn/ui.
+It provides dashboards and workflows for expenses, budgets, investments, groups, reminders, and other finance features powered by the backend API.
 
 ## Tech Stack
 
@@ -10,54 +11,81 @@ Frontend application for Pocket Pal Finance built with React, TypeScript, Vite, 
 - Tailwind CSS
 - shadcn/ui
 
+## Project Context
+
+This frontend is part of a full-stack project:
+
+- Frontend folder: `FE/FFE`
+- Backend folder: `be/FBE`
+- Default local flow:
+	- Frontend on `http://localhost:5173`
+	- Backend on `http://127.0.0.1:8000`
+
+Start backend first, then run this frontend.
+
 ## Prerequisites
 
 - Node.js 18+
 - npm 9+
 - Backend server running locally
 
-## Setup
+## Installation
 
 ```bash
 cd FE/FFE
 npm install
 ```
 
+## Environment Configuration
+
+Optional `.env` in `FE/FFE`:
+
+```env
+VITE_API_URL=http://127.0.0.1:8000
+```
+
+If `VITE_API_URL` is not set, app uses fallback API URL `http://localhost:8000`.
+
 ## Run (Development)
 
 ```bash
+cd FE/FFE
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173` by default.
+App URL: `http://localhost:5173`
 
 ## Key Routes
 
-- `/investments/stocks-crypto` - Stocks & Crypto Analyzer (add/update/delete + profit/tax insights)
-- `/investments/all` - All Investments (all asset types with portfolio analytics)
-- `/investments` - redirects to `/investments/stocks-crypto`
+- `/dashboard` - Overview and summary cards
+- `/expenses` - Expense tracking and history
+- `/budget` - Budget planning and utilization
+- `/income` - Income tracking
+- `/groups` - Shared/group expense workflows
+- `/forecast` - Forecast and analytics
+- `/investments/stocks-crypto` - Stocks and Crypto Analyzer
+- `/investments/all` - All Investments view with analytics
+- `/investments` - Redirects to `/investments/stocks-crypto`
 
-## Investment Types
+## Investments Behavior
 
-The app now stores an explicit `investment_type` and uses type-aware fields in the All Investments page.
+Supported `investment_type` values:
 
-Supported types:
+- `stocks`
+- `crypto`
+- `mutual_funds`
+- `fd`
+- `rd`
+- `sip`
+- `gold`
 
-- stocks
-- crypto
-- mutual_funds
-- fd
-- rd
-- sip
-- gold
+All Investments form behavior:
 
-Form behavior on the All Investments page:
+- Stocks, Crypto, Mutual Funds, and SIP use quantity-based inputs.
+- FD and RD use principal with optional maturity amount.
+- Gold uses amount-based inputs and does not force unit price.
 
-- Stocks/Crypto/Mutual Funds/SIP use unit-based quantity inputs.
-- FD/RD use principal + optional maturity amount instead of a required current value.
-- Gold uses amount-based inputs without forcing a unit price.
-
-## Build (Production)
+## Build and Preview (Production)
 
 ```bash
 npm run build
@@ -70,8 +98,31 @@ npm run preview
 npm run lint
 ```
 
+## Full-Stack Quick Start
+
+1. Start backend in one terminal:
+
+```bash
+cd be/FBE
+.\env\Scripts\Activate.ps1
+uvicorn main:app --reload
+```
+
+2. Start frontend in another terminal:
+
+```bash
+cd FE/FFE
+npm install
+npm run dev
+```
+
+3. Open app:
+
+- `http://localhost:5173`
+
+Keep backend running for login and all data-driven pages.
+
 ## Notes
 
-- Ensure backend API is running before using authenticated and data-driven pages.
-- API requests are handled through `src/services/api.ts`.
-- If needed, set `VITE_API_URL` in a `.env` file (default fallback is `http://localhost:8000`).
+- API requests are managed in `src/services/api.ts`.
+- Ensure backend API CORS and environment configuration match your frontend origin.

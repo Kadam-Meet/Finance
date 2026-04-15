@@ -30,16 +30,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      setSession(token);
-      const profile = await authApi.getProfile();
-      if (profile.success && profile.data) {
-        setUser(profile.data as { id: string; name: string; email: string });
-      } else {
+      try {
+        setSession(token);
+        const profile = await authApi.getProfile();
+        if (profile.success && profile.data) {
+          setUser(profile.data as { id: string; name: string; email: string });
+        } else {
+          setAuthToken(null);
+          setSession(null);
+          setUser(null);
+        }
+      } catch (_error) {
         setAuthToken(null);
         setSession(null);
         setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     void bootstrapAuth();

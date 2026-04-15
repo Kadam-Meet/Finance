@@ -32,6 +32,8 @@ type BackendExpense = {
   category: string;
   description: string;
   date: string;
+  claim_status?: "pending" | "claimed" | "rejected";
+  is_reimbursable?: boolean;
 };
 
 const normalizeCategory = (category: string): ExpenseCategory | "other" => {
@@ -55,10 +57,10 @@ const toReceipt = (expense: BackendExpense): Receipt => ({
   image_url: null,
   amount: Number(expense.amount),
   category: normalizeCategory(expense.category),
-  status: "pending",
+  status: expense.claim_status || "pending",
   date: expense.date,
   description: expense.description,
-  is_reimbursable: true,
+  is_reimbursable: expense.is_reimbursable ?? true,
 });
 
 const ReceiptList = () => {

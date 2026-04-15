@@ -309,28 +309,50 @@ export const aiApi = {
       });
     };
 
-    let response = await runRequest(API_BASE_URL);
+    const candidateBaseUrls = [
+      API_BASE_URL,
+      API_BASE_URL.endsWith('/api') ? API_BASE_URL.replace(/\/api$/, '') : null,
+      API_BASE_URL.includes('127.0.0.1') ? API_BASE_URL.replace('127.0.0.1', 'localhost') : null,
+      API_BASE_URL.includes('localhost') ? API_BASE_URL.replace('localhost', '127.0.0.1') : null,
+    ].filter((url): url is string => Boolean(url));
 
-    if (!response.ok && response.status === 404 && API_BASE_URL.endsWith('/api')) {
-      response = await runRequest(API_BASE_URL.replace(/\/api$/, ''));
-    }
+    let lastError = 'Failed to process receipt';
 
-    const payload = await response.json();
+    for (const baseUrl of [...new Set(candidateBaseUrls)]) {
+      try {
+        const response = await runRequest(baseUrl);
 
-    if (!response.ok) {
-      return {
-        success: false,
-        error: payload?.detail || payload?.error || 'Failed to process receipt',
-      };
-    }
+        let payload: unknown = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
 
-    if (typeof payload?.success === 'boolean') {
-      return payload;
+        if (!response.ok) {
+          lastError =
+            (payload as Record<string, unknown> | null)?.detail as string ||
+            (payload as Record<string, unknown> | null)?.error as string ||
+            `Request failed (${response.status})`;
+          continue;
+        }
+
+        if (typeof (payload as Record<string, unknown> | null)?.success === 'boolean') {
+          return payload as ApiResponse<ReceiptData>;
+        }
+
+        return {
+          success: true,
+          data: payload as ReceiptData,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : 'Failed to process receipt';
+      }
     }
 
     return {
-      success: true,
-      data: payload as ReceiptData,
+      success: false,
+      error: lastError,
     };
   },
 

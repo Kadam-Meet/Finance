@@ -49,6 +49,8 @@ export interface ExpenseFormData {
   date: string;
   paymentMethod: 'cash' | 'card' | 'upi' | 'bank_transfer';
   isRecurring: boolean;
+  claimStatus?: 'pending' | 'claimed' | 'rejected';
+  isReimbursable?: boolean;
 }
 
 // OCR Receipt Processing

@@ -117,8 +117,8 @@ export const AppSidebar = () => {
         </div>
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="font-bold text-sidebar-foreground">FinanceAI</span>
-            <span className="text-xs text-sidebar-foreground/60">Smart Tracker</span>
+            <span className="font-bold text-sidebar-foreground">PocketPal</span>
+            <span className="text-xs text-sidebar-foreground/60">Finance Management</span>
           </div>
         )}
       </div>

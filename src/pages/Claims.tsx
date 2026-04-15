@@ -48,6 +48,8 @@ type BackendExpense = {
   category: string;
   description: string;
   date: string;
+  claim_status?: "pending" | "claimed" | "rejected";
+  is_reimbursable?: boolean;
   payment_method?: "cash" | "card" | "upi" | "bank_transfer";
 };
 
@@ -55,10 +57,10 @@ const toClaimRow = (expense: BackendExpense): ReceiptRow => ({
   id: String(expense.id),
   amount: Number(expense.amount),
   category: expense.category || "other",
-  status: "pending",
+  status: expense.claim_status || "pending",
   date: expense.date,
   description: expense.description || null,
-  is_reimbursable: true,
+  is_reimbursable: expense.is_reimbursable ?? true,
   payment_method: expense.payment_method || "cash",
 });
 
@@ -159,6 +161,24 @@ const Claims = () => {
     await fetchClaims();
   };
 
+  const handleMarkClaimed = async (row: ReceiptRow) => {
+    if (row.status === "claimed") {
+      return;
+    }
+
+    const response = await expenseApi.update(row.id, {
+      claimStatus: "claimed",
+    });
+
+    if (!response.success) {
+      toast({ title: "Unable to update claim", description: response.error || "Please try again", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Marked as claimed", description: "Receipt claim status updated." });
+    await fetchClaims();
+  };
+
   const totalClaim = receipts.reduce((s, r) => s + Number(r.amount), 0);
   const pendingCount = receipts.filter((r) => r.status === "pending").length;
   const claimedCount = receipts.filter((r) => r.status === "claimed").length;
@@ -192,10 +212,34 @@ const Claims = () => {
   };
 
   const handleMarkAllClaimed = async () => {
-    const pendingIds = receipts.filter((r) => r.status === "pending").map((r) => r.id);
-    if (pendingIds.length === 0) return;
-    setReceipts((prev) => prev.map((r) => pendingIds.includes(r.id) ? { ...r, status: "claimed" } : r));
-    toast({ title: "All marked as claimed", description: `${pendingIds.length} receipts updated.` });
+    const pendingRows = receipts.filter((r) => r.status === "pending");
+    if (pendingRows.length === 0) return;
+
+    const results = await Promise.all(
+      pendingRows.map((row) =>
+        expenseApi.update(row.id, {
+          claimStatus: "claimed",
+        })
+      )
+    );
+
+    const successCount = results.filter((res) => res.success).length;
+    if (successCount === 0) {
+      toast({ title: "Unable to update claims", description: "Please try again", variant: "destructive" });
+      return;
+    }
+
+    if (successCount < pendingRows.length) {
+      toast({
+        title: "Partially updated",
+        description: `${successCount} of ${pendingRows.length} receipts marked as claimed.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "All marked as claimed", description: `${successCount} receipts updated.` });
+    }
+
+    await fetchClaims();
   };
 
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
@@ -336,6 +380,15 @@ const Claims = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleMarkClaimed(r)}
+                          disabled={r.status === "claimed"}
+                          title={r.status === "claimed" ? "Already claimed" : "Mark as claimed"}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
                         <Button variant="outline" size="icon" onClick={() => openEditDialog(r)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
