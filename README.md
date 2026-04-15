@@ -41,7 +41,7 @@ npm install
 Optional `.env` in `FE/FFE`:
 
 ```env
-VITE_API_URL=http://127.0.0.1:8000
+VITE_API_URL=https://fbe-1.onrender.com
 ```
 
 If `VITE_API_URL` is not set, app uses fallback API URL `http://localhost:8000`.
