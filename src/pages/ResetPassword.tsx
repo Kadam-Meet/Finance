@@ -88,7 +88,7 @@ const ResetPassword = () => {
           <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
             <Wallet className="h-6 w-6 text-white" />
           </div>
-          <span className="text-2xl font-bold text-foreground">FinanceAI</span>
+          <span className="text-2xl font-bold text-foreground">PocketPal</span>
         </div>
 
         <div className="text-center space-y-2">

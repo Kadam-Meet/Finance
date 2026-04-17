@@ -66,7 +66,7 @@ const Register = () => {
       if (result.success) {
         toast({
           title: 'Account created!',
-          description: 'Welcome to FinanceAI. Let\'s start tracking your expenses.',
+          description: 'Welcome to PocketPal. Let\'s start tracking your expenses.',
         });
         navigate('/dashboard', { replace: true });
       } else {
@@ -89,7 +89,7 @@ const Register = () => {
           <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-xl flex items-center justify-center">
             <Wallet className="h-6 w-6" />
           </div>
-          <span className="text-2xl font-bold">FinanceAI</span>
+          <span className="text-2xl font-bold">PocketPal</span>
         </div>
 
         <div className="space-y-6">
@@ -99,7 +99,7 @@ const Register = () => {
             to Financial Freedom
           </h1>
           <p className="text-lg text-white/80 max-w-md">
-            Join thousands of users who trust FinanceAI to manage their expenses
+            Join thousands of users who trust PocketPal to manage their expenses
             and achieve their financial goals.
           </p>
           <div className="space-y-4 pt-6">
@@ -134,7 +134,7 @@ const Register = () => {
         </div>
 
         <p className="text-white/60 text-sm">
-          © 2024 FinanceAI. All rights reserved.
+          © 2026 PocketPal. All rights reserved.
         </p>
       </div>
 
@@ -146,7 +146,7 @@ const Register = () => {
             <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
               <Wallet className="h-6 w-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-foreground">FinanceAI</span>
+            <span className="text-2xl font-bold text-foreground">PocketPal</span>
           </div>
 
           <div className="text-center lg:text-left">

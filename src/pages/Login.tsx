@@ -72,7 +72,7 @@ const Login = () => {
           <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-xl flex items-center justify-center">
             <Wallet className="h-6 w-6" />
           </div>
-          <span className="text-2xl font-bold">FinanceAI</span>
+          <span className="text-2xl font-bold">PocketPal</span>
         </div>
 
         <div className="space-y-6">
@@ -106,7 +106,7 @@ const Login = () => {
         </div>
 
         <p className="text-white/60 text-sm">
-          © 2024 FinanceAI. All rights reserved.
+          © 2026 PocketPal. All rights reserved.
         </p>
       </div>
 
@@ -118,7 +118,7 @@ const Login = () => {
             <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
               <Wallet className="h-6 w-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-foreground">FinanceAI</span>
+            <span className="text-2xl font-bold text-foreground">PocketPal</span>
           </div>
 
           <div className="text-center lg:text-left">
