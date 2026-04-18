@@ -1,9 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileImage } from "lucide-react";
 
 interface ReceiptCardProps {
-  imageUrl: string | null;
   amount: number;
   category: string;
   status: "pending" | "claimed" | "rejected";
@@ -17,15 +15,8 @@ const statusColors: Record<string, string> = {
   rejected: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-const ReceiptCard = ({ imageUrl, amount, category, status, date, description }: ReceiptCardProps) => (
+const ReceiptCard = ({ amount, category, status, date, description }: ReceiptCardProps) => (
   <Card className="overflow-hidden hover:shadow-md transition-shadow">
-    <div className="h-36 bg-muted flex items-center justify-center overflow-hidden">
-      {imageUrl ? (
-        <img src={imageUrl} alt="Receipt" className="w-full h-full object-cover" />
-      ) : (
-        <FileImage className="h-10 w-10 text-muted-foreground/40" />
-      )}
-    </div>
     <CardContent className="p-4 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold">₹{amount.toFixed(2)}</span>

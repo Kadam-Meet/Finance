@@ -140,7 +140,7 @@ const ReceiptList = () => {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((r) => (
-            <ReceiptCard key={r.id} imageUrl={r.image_url} amount={r.amount} category={r.category} status={r.status} date={r.date} description={r.description} />
+            <ReceiptCard key={r.id} amount={r.amount} category={r.category} status={r.status} date={r.date} description={r.description} />
           ))}
         </div>
       )}
